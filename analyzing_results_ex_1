@@ -1,0 +1,49 @@
+-- Exercise 1: Use the order_binary metric from the previous exercise, 
+-- count the number of users
+-- per treatment group for test_id = 7, 
+-- and count the number of users with orders (for test_id 7)
+
+
+SELECT 
+  order_binary.test_assignment, -- need to alias this by prepending with order_binary
+  COUNT(order_binary.user_id) AS users, -- need to alias this by prepending with order_binary
+  -- need to append with the feature name
+  SUM(order_binary.orders_after_assignment_binary) AS orders_completed
+FROM 
+-- order_binary from create a new metric 
+  (
+  SELECT 
+    test_events.test_id,
+    test_events.test_assignment,
+    test_events.user_id,
+    MAX(CASE WHEN orders.created_at > test_events.event_time THEN 1 ELSE 0 END) AS orders_after_assignment_binary
+  FROM 
+    (
+    SELECT 
+      event_id,
+      event_time,
+      user_id,
+      MAX(CASE WHEN parameter_name = 'test_id' THEN CAST(parameter_value AS INT) ELSE NULL END) AS test_id,
+      MAX(CASE WHEN parameter_name = 'test_assignment' THEN CAST(parameter_value AS INT) ELSE NULL END) AS test_assignment 
+    FROM
+      dsv1069.events
+    WHERE 
+      event_name = 'test_assignment'
+    GROUP BY 
+      event_id,
+      event_time,
+      user_id
+    ) test_events 
+  LEFT JOIN 
+    dsv1069.orders 
+  ON 
+    orders.user_id = test_events.user_id 
+  GROUP BY 
+    test_events.test_id,
+    test_events.test_assignment,
+    test_events.user_id
+  ) order_binary
+WHERE 
+  test_id = 7
+GROUP BY 
+  test_assignment
