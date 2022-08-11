@@ -1,0 +1,52 @@
+-- ex 4
+-- Create the metric invoices (this is a mean metric, not a binary metric) and for test_id = 7
+-- The count of users per treatment group
+-- The average value of the metric per treatment group
+-- The standard deviation of the metric per treatment group
+SELECT 
+  mean_metrics.test_id, 
+  mean_metrics.test_assignment,
+  COUNT(mean_metrics.user_id) AS users,
+  AVG(mean_metrics.invoices) AS avg_invoices,
+  STDDEV(mean_metrics.invoices) AS stddev_invoices
+FROM 
+  (
+  SELECT 
+    test_events.test_id,
+    test_events.test_assignment,
+    test_events.user_id,
+    COUNT(DISTINCT CASE WHEN orders.created_at > test_events.event_time THEN orders.invoice_id ELSE NULL END) AS invoices,
+    COUNT(DISTINCT CASE WHEN orders.created_at > test_events.event_time THEN orders.line_item_id ELSE NULL END) AS line_items,
+    COALESCE(SUM(CASE WHEN orders.created_at > test_events.event_time THEN orders.price ELSE 0 END)) AS total_revenue
+  FROM 
+    (
+    SELECT 
+      event_id,
+      event_time,
+      user_id,
+      MAX(CASE WHEN parameter_name = 'test_id' THEN CAST(parameter_value AS INT) ELSE NULL END) AS test_id,
+      MAX(CASE WHEN parameter_name = 'test_assignment' THEN parameter_value ELSE NULL END) AS test_assignment
+    FROM 
+      dsv1069.events
+    WHERE 
+      event_name = 'test_assignment'
+    GROUP BY
+      event_id,
+      event_time,
+      user_id
+    ) test_events
+  LEFT OUTER JOIN 
+    dsv1069.orders 
+  ON 
+    orders.user_id = test_events.user_id 
+  GROUP BY 
+    test_events.test_id,
+    test_events.test_assignment,
+    test_events.user_id 
+  ) mean_metrics
+GROUP BY 
+  mean_metrics.test_id, 
+  mean_metrics.test_assignment
+ORDER BY 
+  mean_metrics.test_id
+ 
