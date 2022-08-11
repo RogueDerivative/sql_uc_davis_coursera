@@ -1,0 +1,65 @@
+-- ex 3
+-- alter the result from ex 2, compute the users who viewed an item
+-- within 30 days of their treatment event
+SELECT 
+  views.test_assignment,
+  COUNT(views.user_id)                                        AS users,
+  SUM(views.views_binary)                                     AS views_binary,
+  SUM(views.views_binary_30d)                                 AS views_binary_30d
+FROM 
+-- order_binary from line 185
+  (
+  SELECT 
+    test_events.test_id,
+    test_events.test_assignment,
+    test_events.user_id,
+    MAX(CASE WHEN views_completed.event_time > 
+                  test_events.event_time 
+                  THEN 1 ELSE 0 END)                          AS views_binary,
+    MAX(CASE WHEN (views_completed.event_time > 
+                  test_events.event_time AND 
+                  DATE_PART('day', 
+                  views_completed.event_time - 
+                  test_events.event_time) <= 30) 
+                  THEN 1 ELSE 0 END)                          AS views_binary_30d
+  FROM 
+    (
+    SELECT 
+      event_id,
+      event_time,
+      user_id,
+      MAX(CASE WHEN parameter_name = 'test_id' 
+          THEN CAST(parameter_value AS INT) 
+          ELSE NULL END)                                      AS test_id,
+      MAX(CASE WHEN parameter_name = 'test_assignment' 
+          THEN CAST(parameter_value AS INT) 
+          ELSE NULL END)                                      AS test_assignment 
+    FROM
+      dsv1069.events
+    WHERE 
+      event_name = 'test_assignment'
+    GROUP BY 
+      event_id,
+      event_time,
+      user_id
+    ) test_events 
+  LEFT OUTER JOIN
+    (
+    SELECT 
+      * 
+    FROM 
+      dsv1069.events 
+    WHERE 
+      event_name = 'view_item'
+    ) views_completed
+  ON 
+    test_events.user_id = views_completed.user_id 
+  GROUP BY 
+    test_events.test_id,
+    test_events.test_assignment,
+    test_events.user_id
+  ) views
+WHERE 
+  test_id = 7
+GROUP BY 
+  test_assignment
